@@ -3,7 +3,7 @@
  * Plugin Name: Display Posts
  * Plugin URI: https://displayposts.com
  * Description: Display a listing of posts using the [display-posts] shortcode
- * Version: 3.1.1
+ * Version: 3.1.2
  * Author: Bill Erickson
  * Author URI: https://www.billerickson.net
  * Text Domain: display-posts
@@ -16,7 +16,7 @@
  * even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
  *
  * @package Display Posts
- * @version 3.1.1
+ * @version 3.1.2
  * @author Bill Erickson <bill@billerickson.net>
  * @copyright Copyright (c) 2011, Bill Erickson
  * @link https://displayposts.com
@@ -87,6 +87,7 @@ function be_display_posts_shortcode( $atts ) {
 			'include_excerpt'       => false,
 			'include_excerpt_dash'  => true,
 			'include_link'          => true,
+			'include_unpublished_links' => false,
 			'include_title'         => true,
 			'meta_key'              => '', // phpcs:ignore WordPress.VIP.SlowDBQuery.slow_db_query_meta_key
 			'meta_value'            => '', // phpcs:ignore WordPress.VIP.SlowDBQuery.slow_db_query_meta_value
@@ -153,6 +154,7 @@ function be_display_posts_shortcode( $atts ) {
 	$include_excerpt       = filter_var( $atts['include_excerpt'], FILTER_VALIDATE_BOOLEAN );
 	$include_excerpt_dash  = filter_var( $atts['include_excerpt_dash'], FILTER_VALIDATE_BOOLEAN );
 	$include_link          = filter_var( $atts['include_link'], FILTER_VALIDATE_BOOLEAN );
+	$include_unpublished_links          = filter_var( $atts['include_unpublished_links'], FILTER_VALIDATE_BOOLEAN );
 	$meta_key              = sanitize_text_field( $atts['meta_key'] );
 	$meta_value            = sanitize_text_field( $atts['meta_value'] );
 	$no_posts_message      = sanitize_text_field( $atts['no_posts_message'] );
@@ -492,24 +494,28 @@ function be_display_posts_shortcode( $atts ) {
 		$author  = '';
 		$excerpt = '';
 		$content = '';
+		$status = get_post_status($post->ID);
 
-		if ( $include_title && $include_link ) {
-			/** This filter is documented in wp-includes/link-template.php */
-			$title = '<a class="title" href="' . apply_filters( 'the_permalink', get_permalink() ) . '">' . get_the_title() . '</a>';
+		$title = '';
+		if ( $include_title ) {
+			$title = get_the_title();
 
-		} elseif ( $include_title ) {
-			$title = '<span class="title">' . get_the_title() . '</span>';
-
-		} else {
-			$title = '';
+			if ( ( $status == 'publish' && $include_link ) || $include_unpublished_links ) {
+				/** This filter is documented in wp-includes/link-template.php */
+				$title = '<a class="title ' . $status . '" href="' . apply_filters( 'the_permalink', get_permalink() ) . '">' . $title . '</a>';
+			} else {
+				$title = '<span class="title ' . $status . '">' . $title . '</span>';
+			}
 		}
 
-		if ( $image_size && has_post_thumbnail() && $include_link ) {
-			$image = '<a class="image" href="' . get_permalink() . '">' . get_the_post_thumbnail( get_the_ID(), $image_size ) . '</a> ';
-
-		} elseif ( $image_size && has_post_thumbnail() ) {
-			$image = '<span class="image">' . get_the_post_thumbnail( get_the_ID(), $image_size ) . '</span> ';
-
+		if ( $image_size && has_post_thumbnail() ) {
+			$image = get_the_post_thumbnail( get_the_ID(), $image_size );
+		
+			if ( ( $status == 'publish' && $include_link ) || $include_unpublished_links ) {
+				$image = '<a class="image ' . $status . '" href="' . get_permalink() . '">' . $image . '</a> ';
+			} else {
+				$image = '<span class="image ' . $status . '">' . $image . '</span> ';
+			}
 		}
 
 		if ( $include_date ) {
@@ -541,7 +547,8 @@ function be_display_posts_shortcode( $atts ) {
 
 				$length = $excerpt_length ? $excerpt_length : apply_filters( 'excerpt_length', 55 );
 				$more   = $excerpt_more ? $excerpt_more : apply_filters( 'excerpt_more', '' );
-				$more   = $excerpt_more_link ? ' <a class="excerpt-more" href="' . get_permalink() . '">' . $more . '</a>' : ' <span class="excerpt-more">' . $more . '</span>';
+				$more   = $excerpt_more_link && ( $status == 'publish' || $include_unpublished_links ) ? ' <a class="excerpt-more" href="' . get_permalink() . '">' . $more . '</a>' : ' <span class="excerpt-more">' . $more . '</span>';
+
 
 				if ( has_excerpt() && apply_filters( 'display_posts_shortcode_full_manual_excerpt', false ) ) {
 					$excerpt = $post->post_excerpt . $more;
